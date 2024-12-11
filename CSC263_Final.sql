@@ -3,35 +3,36 @@ CREATE DATABASE PetSitter;
 USE PetSitter;
 
 CREATE TABLE Responders (
-    ResponderID INT PRIMARY KEY NOT NULL,
-    FirstName VARCHAR(100)  NOT NULL,
-    LastName VARCHAR(100)  NOT NULL,
-    Role INT NOT NULL,
-    Email VARCHAR(100) NOT NULL,
-    Phone VARCHAR(15) NULL
+    ResponderID INT AUTO_INCREMENT PRIMARY KEY,
+    LastName VARCHAR(100) NOT NULL,
+    FirstName VARCHAR(100) NOT NULL,
+    Role ENUM('Client', 'Sitter', 'Handler') NOT NULL,
+    Phone VARCHAR(15),
+    Email VARCHAR(100)
+    Password VARCHAR(255) NOT NULL
 );
 
 SELECT * FROM Responders;
 
 CREATE TABLE Orders (
-    OrderID INT PRIMARY KEY NOT NULL,
-    ServiceState VARCHAR(50) NOT NULL,
-    DateCreated DATE NOT NULL,
+    OrderID INT AUTO_INCREMENT PRIMARY KEY,
+    ServiceState ENUM('Pending', 'Assigned', 'Completed') NOT NULL,
+    DateCreated DATETIME NOT NULL,
     OrderType VARCHAR(100) NOT NULL,
-	ResponderID INT, 
-    FOREIGN KEY (ResponderID) REFERENCES Responders(ResponderID)
+    ResponderID INT,
+    FOREIGN KEY (ResponderID) REFERENCES Responders(ResponderID) ON DELETE SET NULL
 );
 
 SELECT * FROM Orders;
 
 CREATE TABLE Comments (
-    CommentID INT PRIMARY KEY NOT NULL,
-    Timestamp DATETIME NOT NULL,
-    CommentText TEXT NULL,
-    ResponderID INT NOT NULL,
-    OrderID INT NOT NULL,
-    FOREIGN KEY (ResponderID) REFERENCES Responders(ResponderID),
-    FOREIGN KEY (OrderID) REFERENCES Orders(OrderID)
+    CommentID INT AUTO_INCREMENT PRIMARY KEY,
+    OrderID INT,
+    ResponderID INT,
+    CommentText TEXT NOT NULL,
+    Timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (OrderID) REFERENCES Orders(OrderID) ON DELETE CASCADE,
+    FOREIGN KEY (ResponderID) REFERENCES Responders(ResponderID) ON DELETE SET NULL
 );
 
 SELECT * FROM Comments;
