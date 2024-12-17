@@ -2,20 +2,41 @@
 session_start();
 include 'db_connection.php';
 
+if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
+    header('Location: login.php');
+    exit();
+}
+
+$userRole = $_SESSION['role']; // Retrieve user role
 $orderDetails = null;
 $comments = [];
 $message = "";
 
+// Get the client's IP address
+$clientIp = $_SERVER['REMOTE_ADDR'];
+
+// Normalize IPv6 loopback to IPv4 for consistency
+if ($clientIp === '::1') {
+    $clientIp = '127.0.0.1';
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $orderId = $_POST['order_id'];
 
-    // Fetch order details
-    $orderSql = "SELECT o.OrderID, o.ServiceState, o.DateCreated, o.OrderType, r.FirstName, r.LastName, r.Role 
-                 FROM Orders o 
-                 LEFT JOIN Responders r ON o.ResponderID = r.ResponderID
-                 WHERE o.OrderID = ?";
+    // Fetch order details including client and sitter information
+    $orderSql = "SELECT Orders.OrderID, Orders.ServiceState, Orders.DateCreated, Orders.OrderType, 
+                    ClientResponders.FirstName AS ClientFirstName, ClientResponders.LastName AS ClientLastName, 
+                    ClientResponders.Phone AS ClientPhone, ClientResponders.Email AS ClientEmail,
+                    SitterResponders.FirstName AS SitterFirstName, SitterResponders.LastName AS SitterLastName, 
+                    SitterResponders.Role AS SitterRole
+             FROM Orders
+             LEFT JOIN Responders AS ClientResponders ON Orders.OrderID = 
+                 (SELECT OrderID FROM Orders WHERE Orders.OrderID = ? LIMIT 1) -- Fetch client info
+             LEFT JOIN Responders AS SitterResponders ON Orders.ResponderID = SitterResponders.ResponderID 
+             WHERE Orders.OrderID = ?";
     $stmt = $conn->prepare($orderSql);
-    $stmt->bind_param('i', $orderId);
+    $stmt->bind_param('ii', $orderId, $orderId);
+
     $stmt->execute();
     $result = $stmt->get_result();
 
@@ -23,11 +44,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $orderDetails = $result->fetch_assoc();
 
         // Fetch comments for the order
-        $commentSql = "SELECT c.CommentText, c.Timestamp, r.FirstName, r.LastName 
-                       FROM Comments c 
-                       LEFT JOIN Responders r ON c.ResponderID = r.ResponderID 
-                       WHERE c.OrderID = ? 
-                       ORDER BY c.Timestamp DESC";
+        $commentSql = "SELECT Comments.CommentText, Comments.Timestamp, Responders.FirstName, Responders.LastName 
+                       FROM Comments 
+                       LEFT JOIN Responders ON Comments.ResponderID = Responders.ResponderID 
+                       WHERE Comments.OrderID = ? 
+                       ORDER BY Comments.Timestamp DESC";
         $stmt = $conn->prepare($commentSql);
         $stmt->bind_param('i', $orderId);
         $stmt->execute();
@@ -109,6 +130,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </header>
 
     <nav>
+        <?php if ($userRole === 'Sitter'): ?>
+            <a href="sitter_dash.php">Back to Sitter Dashboard</a>
+        <?php elseif ($userRole === 'Handler'): ?>
+            <a href="handler_dash.php">Back to Handler Dashboard</a>
+        <?php elseif ($userRole === 'Client'): ?>
+            <a href="client_dash.php">Back to Client Dashboard</a>
+        <?php endif; ?>
         <a href="logout.php">Logout</a>
     </nav>
 
@@ -145,12 +173,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <td><?php echo htmlspecialchars($orderDetails['OrderType']); ?></td>
                 </tr>
                 <tr>
-                    <th>Assigned To</th>
+                    <th>Client Name</th>
+                    <td><?php echo htmlspecialchars($orderDetails['ClientFirstName'] . ' ' . $orderDetails['ClientLastName']); ?></td>
+                </tr>
+                <tr>
+                    <th>Client Phone</th>
+                    <td><?php echo htmlspecialchars($orderDetails['ClientPhone']); ?></td>
+                </tr>
+                <tr>
+                    <th>Client Email</th>
+                    <td><?php echo htmlspecialchars($orderDetails['ClientEmail']); ?></td>
+                </tr>
+                <tr>
+                    <th>Assigned Sitter</th>
                     <td>
                         <?php 
-                        echo htmlspecialchars($orderDetails['FirstName'] . ' ' . $orderDetails['LastName']) . ' (' . htmlspecialchars($orderDetails['Role']) . ')';
+                        echo htmlspecialchars($orderDetails['SitterFirstName'] . ' ' . $orderDetails['SitterLastName']) . ' (' . htmlspecialchars($orderDetails['SitterRole']) . ')';
                         ?>
                     </td>
+                </tr>
+                <tr>
+                    <th>Client IP Address</th>
+                    <td><?php echo htmlspecialchars($clientIp); ?></td>
                 </tr>
             </table>
 
@@ -181,3 +225,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </main>
 </body>
 </html>
+
+

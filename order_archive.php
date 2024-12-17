@@ -3,17 +3,15 @@ session_start();
 include 'db_connection.php';
 
 // Check if the user is logged in
-if (!isset($_SESSION['user_id'])) {
+if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
     header('Location: login.php');
     exit();
 }
 
-// Fetch completed orders
-$sql = "SELECT o.OrderID, o.DateCreated, o.OrderType, r.FirstName, r.LastName, r.Role 
-        FROM Orders o 
-        LEFT JOIN Responders r ON o.ResponderID = r.ResponderID 
-        WHERE o.ServiceState = 'Completed' 
-        ORDER BY o.DateCreated DESC";
+$userRole = $_SESSION['role']; // Retrieve the user's role from the session
+
+// Fetch archived orders (adjust this query as per your database structure)
+$sql = "SELECT OrderID, ServiceState, DateCreated, OrderType, ResponderID FROM Orders WHERE ServiceState = 'Completed' ORDER BY DateCreated DESC";
 $result = $conn->query($sql);
 ?>
 
@@ -70,6 +68,9 @@ $result = $conn->query($sql);
             background-color: #0073e6;
             color: white;
         }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
     </style>
 </head>
 <body>
@@ -78,6 +79,13 @@ $result = $conn->query($sql);
     </header>
 
     <nav>
+        <?php if ($userRole === 'Sitter'): ?>
+            <a href="sitter_dash.php">Back to Sitter Dashboard</a>
+        <?php elseif ($userRole === 'Handler'): ?>
+            <a href="handler_dash.php">Back to Handler Dashboard</a>
+        <?php else: ?>
+            <a href="client_dash.php">Back to Client Dashboard</a>
+        <?php endif; ?>
         <a href="logout.php">Logout</a>
     </nav>
 
@@ -89,28 +97,26 @@ $result = $conn->query($sql);
                 <thead>
                     <tr>
                         <th>Order ID</th>
+                        <th>Service State</th>
                         <th>Date Created</th>
                         <th>Order Type</th>
-                        <th>Assigned Responder</th>
+                        <th>Responder ID</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php while ($row = $result->fetch_assoc()): ?>
                         <tr>
                             <td><?php echo htmlspecialchars($row['OrderID']); ?></td>
+                            <td><?php echo htmlspecialchars($row['ServiceState']); ?></td>
                             <td><?php echo htmlspecialchars($row['DateCreated']); ?></td>
                             <td><?php echo htmlspecialchars($row['OrderType']); ?></td>
-                            <td>
-                                <?php
-                                echo htmlspecialchars($row['FirstName'] . ' ' . $row['LastName']) . ' (' . htmlspecialchars($row['Role']) . ')';
-                                ?>
-                            </td>
+                            <td><?php echo htmlspecialchars($row['ResponderID']); ?></td>
                         </tr>
                     <?php endwhile; ?>
                 </tbody>
             </table>
         <?php else: ?>
-            <p>No completed orders found.</p>
+            <p>No archived orders found.</p>
         <?php endif; ?>
     </main>
 </body>

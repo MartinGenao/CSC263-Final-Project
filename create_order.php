@@ -1,48 +1,72 @@
 <?php
 // Include database connection
 include 'db_connection.php';
+session_start();
 
 // Initialize variables for form submission feedback
 $message = "";
 
+// Fetch all distinct order types for dropdown
+$orderTypes = [];
+$orderTypeSql = "SELECT DISTINCT OrderType FROM Orders ORDER BY OrderType ASC";
+$orderTypeResult = $conn->query($orderTypeSql);
+if ($orderTypeResult->num_rows > 0) {
+    while ($row = $orderTypeResult->fetch_assoc()) {
+        $orderTypes[] = $row['OrderType'];
+    }
+}
+
+// Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Retrieve form data
-    $orderType = $_POST['orderType'];
-    $responderID = $_POST['responderID'];
+    $orderType = trim($_POST['orderType']);
+    $commentText = trim($_POST['comment']);
+    $clientIp = $_SERVER['REMOTE_ADDR']; // Capture the client's IP address
+
+    // Normalize IPv6 loopback to IPv4 for consistency
+    if ($clientIp === '::1') {
+        $clientIp = '127.0.0.1';
+    }
+
     $dateCreated = date('Y-m-d H:i:s'); // Automatically generate current date and time
     $serviceState = 'pending'; // Default state
 
-    // Validate Responder ID to prevent invalid entries
-    if ($responderID <= 0) {
-        $message = "Responder ID must be a positive number.";
+    // Get the logged-in client's ResponderID
+    $responderID = $_SESSION['user_id'];
+
+    // Validate inputs
+    if (empty($orderType)) {
+        $message = "Order type is required.";
+    } elseif (empty($commentText)) {
+        $message = "A comment is required to create an order.";
     } else {
-        // Check if ResponderID exists in the database
-        $checkSql = "SELECT COUNT(*) AS count FROM Responders WHERE ResponderID = ?";
-        $checkStmt = $conn->prepare($checkSql);
-        $checkStmt->bind_param('i', $responderID);
-        $checkStmt->execute();
-        $checkResult = $checkStmt->get_result();
-        $row = $checkResult->fetch_assoc();
+        // Insert the order into the Orders table
+        $sql = "INSERT INTO Orders (OrderType, DateCreated, ServiceState, ResponderID) VALUES (?, ?, ?, ?)";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param('sssi', $orderType, $dateCreated, $serviceState, $responderID);
 
-        if ($row['count'] == 0) {
-            $message = "Responder ID does not exist.";
-        } else {
-            // SQL to insert new order
-            $sql = "INSERT INTO Orders (OrderType, DateCreated, ServiceState, ResponderID) VALUES (?, ?, ?, ?)";
-            $stmt = $conn->prepare($sql);
-            $stmt->bind_param('sssi', $orderType, $dateCreated, $serviceState, $responderID);
+        if ($stmt->execute()) {
+            $orderID = $stmt->insert_id; // Get the ID of the newly created order
 
-            // Execute statement and check for success
-            if ($stmt->execute()) {
+            // Insert the comment into the Comments table
+            $commentSql = "INSERT INTO Comments (OrderID, ResponderID, CommentText) VALUES (?, ?, ?)";
+            $commentStmt = $conn->prepare($commentSql);
+            $commentStmt->bind_param('iis', $orderID, $responderID, $commentText);
+
+            if ($commentStmt->execute()) {
                 $message = "Order created successfully!";
             } else {
-                $message = "Error: " . $stmt->error;
+                $message = "Error adding comment: " . $commentStmt->error;
             }
 
-            // Close the statement
-            $stmt->close();
+            $commentStmt->close();
+        } else {
+            $message = "Error creating order: " . $stmt->error;
         }
-        $checkStmt->close();
+
+        $stmt->close();
+
+        // Pass the IP address dynamically to the session for query_order.php
+        $_SESSION['client_ip'] = $clientIp;
     }
 }
 ?>
@@ -78,13 +102,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             border-radius: 5px;
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
         }
-        form input, form select, form button {
+        form select, form textarea, form button {
             display: block;
             width: 100%;
             margin-bottom: 15px;
             padding: 10px;
             border: 1px solid #ccc;
             border-radius: 5px;
+        }
+        form textarea {
+            height: 100px;
+            resize: vertical;
         }
         form button {
             background: #0073e6;
@@ -121,10 +149,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <main>
         <form method="POST" action="">
             <label for="orderType">Order Type:</label>
-            <input type="text" id="orderType" name="orderType" required>
+            <select id="orderType" name="orderType" required>
+                <option value="" disabled selected>Select an order type</option>
+                <?php foreach ($orderTypes as $type): ?>
+                    <option value="<?php echo htmlspecialchars($type); ?>">
+                        <?php echo htmlspecialchars($type); ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
 
-            <label for="responderID">Responder ID:</label>
-            <input type="number" id="responderID" name="responderID" min="1" required>
+            <label for="comment">Add a Comment:</label>
+            <textarea id="comment" name="comment" required placeholder="Enter any special instructions or details here..."></textarea>
 
             <button type="submit">Create Order</button>
         </form>
@@ -133,7 +168,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <p class="message"><?php echo htmlspecialchars($message); ?></p>
         <?php endif; ?>
 
-        <a href="psirt_homepage.php" class="back-button">Back to Home</a>
+        <a href="client_dash.php" class="back-button">Back to Client Dashboard</a>
     </main>
 </body>
 </html>
+

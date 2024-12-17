@@ -12,7 +12,7 @@ $message = "";
 
 // Handle adding a new order type
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['new_order_type'])) {
-    $newOrderType = $_POST['new_order_type'];
+    $newOrderType = trim($_POST['new_order_type']);
 
     // Check if the order type already exists
     $checkSql = "SELECT COUNT(*) AS count FROM Orders WHERE OrderType = ?";
@@ -36,6 +36,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['new_order_type'])) {
             $message = "Error adding order type: " . $stmt->error;
         }
     }
+    $stmt->close();
+}
+
+// Handle deleting an order type
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_order_type'])) {
+    $orderTypeToDelete = trim($_POST['delete_order_type']);
+
+    // Delete the selected order type
+    $deleteSql = "DELETE FROM Orders WHERE OrderType = ?";
+    $stmt = $conn->prepare($deleteSql);
+    $stmt->bind_param('s', $orderTypeToDelete);
+
+    if ($stmt->execute()) {
+        $message = "Order type '$orderTypeToDelete' deleted successfully.";
+    } else {
+        $message = "Error deleting order type: " . $stmt->error;
+    }
+
     $stmt->close();
 }
 
@@ -105,6 +123,17 @@ $result = $conn->query($sql);
         .form-container {
             margin-bottom: 20px;
         }
+        .delete-button {
+            background-color: #e60000;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .delete-button:hover {
+            background-color: #cc0000;
+        }
     </style>
 </head>
 <body>
@@ -114,6 +143,7 @@ $result = $conn->query($sql);
 
     <nav>
         <a href="logout.php">Logout</a>
+        <a href="handler_dash.php">Back to Handler Dashboard</a>
     </nav>
 
     <main>
@@ -138,12 +168,19 @@ $result = $conn->query($sql);
                 <thead>
                     <tr>
                         <th>Order Type</th>
+                        <th>Action</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php while ($row = $result->fetch_assoc()): ?>
                         <tr>
                             <td><?php echo htmlspecialchars($row['OrderType']); ?></td>
+                            <td>
+                                <form method="POST" action="" style="display: inline;">
+                                    <input type="hidden" name="delete_order_type" value="<?php echo htmlspecialchars($row['OrderType']); ?>">
+                                    <button type="submit" class="delete-button">Delete</button>
+                                </form>
+                            </td>
                         </tr>
                     <?php endwhile; ?>
                 </tbody>

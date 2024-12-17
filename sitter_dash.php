@@ -10,27 +10,84 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'Sitter') {
 
 $userId = $_SESSION['user_id'];
 
-// Fetch orders assigned to the logged-in sitter
-$sql = "SELECT OrderID, ServiceState, DateCreated, OrderType FROM Orders WHERE ResponderID = ? AND ServiceState = 'Assigned' ORDER BY DateCreated ASC";
+// Fetch orders assigned to the logged-in sitter along with client information and comments
+$sql = "SELECT Orders.OrderID, Orders.ServiceState, Orders.DateCreated, Orders.OrderType,
+               Responders.FirstName AS ClientFirstName, Responders.LastName AS ClientLastName,
+               Responders.Phone AS ClientPhone, Responders.Email AS ClientEmail,
+               GROUP_CONCAT(CONCAT(Comments.Timestamp, ' ', Responders2.FirstName, ' ', Responders2.LastName, ': ', Comments.CommentText)
+                            ORDER BY Comments.Timestamp ASC SEPARATOR '<br>') AS Comments
+        FROM Orders
+        LEFT JOIN Responders ON Orders.ResponderID = Responders.ResponderID -- Fetch client info
+        LEFT JOIN Comments ON Orders.OrderID = Comments.OrderID
+        LEFT JOIN Responders AS Responders2 ON Comments.ResponderID = Responders2.ResponderID -- Fetch responders for comments
+        WHERE Orders.ResponderID = ? AND Orders.ServiceState = 'Assigned'
+        GROUP BY Orders.OrderID
+        ORDER BY Orders.DateCreated ASC";
 $stmt = $conn->prepare($sql);
 $stmt->bind_param('i', $userId);
 $stmt->execute();
 $result = $stmt->get_result();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $orderId = $_POST['order_id'];
+    if (isset($_POST['order_id'], $_POST['comment'])) {
+        // Adding a comment
+        $orderId = $_POST['order_id'];
+        $commentText = trim($_POST['comment']);
 
-    // Update the order status to Completed
-    $updateSql = "UPDATE Orders SET ServiceState = 'Completed' WHERE OrderID = ? AND ResponderID = ?";
-    $stmt = $conn->prepare($updateSql);
-    $stmt->bind_param('ii', $orderId, $userId);
+        if (!empty($commentText)) {
+            $checkCommentSql = "SELECT COUNT(*) AS count FROM Comments WHERE OrderID = ? AND ResponderID = ?";
+            $checkCommentStmt = $conn->prepare($checkCommentSql);
+            $checkCommentStmt->bind_param('ii', $orderId, $userId);
+            $checkCommentStmt->execute();
+            $checkCommentResult = $checkCommentStmt->get_result();
+            $row = $checkCommentResult->fetch_assoc();
 
-    if ($stmt->execute()) {
-        $message = "Order $orderId has been marked as completed.";
-    } else {
-        $message = "Error updating order: " . $stmt->error;
+            if ($row['count'] > 0) {
+                $message = "You have already commented on this order.";
+            } else {
+                $commentSql = "INSERT INTO Comments (OrderID, ResponderID, CommentText) VALUES (?, ?, ?)";
+                $commentStmt = $conn->prepare($commentSql);
+                $commentStmt->bind_param('iis', $orderId, $userId, $commentText);
+                if ($commentStmt->execute()) {
+                    $message = "Comment added successfully.";
+                } else {
+                    $message = "Error adding comment: " . $commentStmt->error;
+                }
+                $commentStmt->close();
+            }
+            $checkCommentStmt->close();
+        } else {
+            $message = "Comment cannot be empty.";
+        }
+    } elseif (isset($_POST['order_id'], $_POST['complete'])) {
+        // Marking order as completed
+        $orderId = $_POST['order_id'];
+
+        $updateSql = "UPDATE Orders SET ServiceState = 'Completed' WHERE OrderID = ? AND ResponderID = ?";
+        $stmt = $conn->prepare($updateSql);
+        $stmt->bind_param('ii', $orderId, $userId);
+
+        if ($stmt->execute()) {
+            $message = "Order $orderId has been marked as completed.";
+        } else {
+            $message = "Error updating order: " . $stmt->error;
+        }
+        $stmt->close();
+    } elseif (isset($_POST['order_id'], $_POST['deny'])) {
+        // Denying the service request
+        $orderId = $_POST['order_id'];
+
+        $updateSql = "UPDATE Orders SET ServiceState = 'Pending' WHERE OrderID = ? AND ResponderID = ?";
+        $stmt = $conn->prepare($updateSql);
+        $stmt->bind_param('ii', $orderId, $userId);
+
+        if ($stmt->execute()) {
+            $message = "Order $orderId has been set back to Pending.";
+        } else {
+            $message = "Error updating order: " . $stmt->error;
+        }
+        $stmt->close();
     }
-    $stmt->close();
 }
 ?>
 
@@ -87,12 +144,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             background-color: #0073e6;
             color: white;
         }
-        .complete-form {
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .action-form {
             display: flex;
             gap: 10px;
             align-items: center;
+            margin-top: 5px;
         }
-        .complete-form button {
+        .action-form button {
             padding: 5px;
             background: #0073e6;
             color: white;
@@ -100,13 +161,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             border-radius: 3px;
             cursor: pointer;
         }
-        .complete-form button:hover {
+        .action-form button:hover {
             background: #005bb5;
         }
         .message {
             margin-bottom: 20px;
             font-weight: bold;
             color: green;
+        }
+        textarea {
+            width: 100%;
+            resize: vertical;
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
         }
     </style>
 </head>
@@ -117,6 +185,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <nav>
         <a href="logout.php">Logout</a>
+        <a href="query_order.php">Search Orders</a>
+        <a href="order_archive.php">Order Archive</a>
     </nav>
 
     <main>
@@ -134,7 +204,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <th>Service State</th>
                         <th>Date Created</th>
                         <th>Order Type</th>
-                        <th>Mark as Completed</th>
+                        <th>Comments</th>
+                        <th>Client Info</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -144,10 +216,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <td><?php echo htmlspecialchars($row['ServiceState']); ?></td>
                             <td><?php echo htmlspecialchars($row['DateCreated']); ?></td>
                             <td><?php echo htmlspecialchars($row['OrderType']); ?></td>
+                            <td><?php echo $row['Comments'] ? nl2br($row['Comments']) : 'No comments yet'; ?></td>
                             <td>
-                                <form method="POST" class="complete-form">
+                                <?php echo htmlspecialchars($row['ClientFirstName'] . ' ' . $row['ClientLastName']); ?><br>
+                                Phone: <?php echo htmlspecialchars($row['ClientPhone']); ?><br>
+                                Email: <?php echo htmlspecialchars($row['ClientEmail']); ?>
+                            </td>
+                            <td>
+                                <form method="POST" class="action-form">
                                     <input type="hidden" name="order_id" value="<?php echo htmlspecialchars($row['OrderID']); ?>">
-                                    <button type="submit">Complete</button>
+                                    <textarea name="comment" placeholder="Add a comment"></textarea>
+                                    <button type="submit">Add Comment</button>
+                                </form>
+                                <form method="POST" class="action-form">
+                                    <input type="hidden" name="order_id" value="<?php echo htmlspecialchars($row['OrderID']); ?>">
+                                    <input type="hidden" name="complete" value="1">
+                                    <button type="submit">Mark as Completed</button>
+                                </form>
+                                <form method="POST" class="action-form">
+                                    <input type="hidden" name="order_id" value="<?php echo htmlspecialchars($row['OrderID']); ?>">
+                                    <input type="hidden" name="deny" value="1">
+                                    <button type="submit" style="background: #e60000;">Deny Request</button>
                                 </form>
                             </td>
                         </tr>

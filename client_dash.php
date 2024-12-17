@@ -9,14 +9,62 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'Client') {
 }
 
 $userId = $_SESSION['user_id'];
+$message = "";
 
-// Fetch the orders created by the logged-in client
-$sql = "SELECT OrderID, ServiceState, DateCreated, OrderType FROM Orders WHERE ResponderID = ? ORDER BY DateCreated DESC";
-$stmt = $conn->prepare($sql);
-$stmt->bind_param('i', $userId);
-$stmt->execute();
-$result = $stmt->get_result();
+// Handle adding a confirmation comment for completed orders
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_order_id'])) {
+    $orderId = $_POST['confirm_order_id'];
+    $clientComment = trim($_POST['client_comment']);
 
+    if (!empty($clientComment)) {
+        // Add confirmation comment
+        $commentSql = "INSERT INTO Comments (OrderID, ResponderID, CommentText) VALUES (?, ?, ?)";
+        $stmt = $conn->prepare($commentSql);
+        $stmt->bind_param('iis', $orderId, $userId, $clientComment);
+
+        if ($stmt->execute()) {
+            // Redirect to prevent form resubmission
+            header('Location: client_dash.php');
+            exit();
+        } else {
+            $message = "Error adding confirmation comment: " . $stmt->error;
+        }
+        $stmt->close();
+    } else {
+        $message = "Comment cannot be empty.";
+    }
+}
+
+// Fetch pending requests for the logged-in client
+$pendingSql = "SELECT Orders.OrderID, Orders.ServiceState, Orders.DateCreated, Orders.OrderType,
+               GROUP_CONCAT(CONCAT(Comments.Timestamp, ' ', Responders.FirstName, ' ', Responders.LastName, ': ', Comments.CommentText)
+                            ORDER BY Comments.Timestamp DESC SEPARATOR '<br>') AS Comments
+               FROM Orders
+               LEFT JOIN Comments ON Orders.OrderID = Comments.OrderID
+               LEFT JOIN Responders ON Comments.ResponderID = Responders.ResponderID
+               WHERE Orders.ResponderID = ? AND Orders.ServiceState = 'Pending'
+               GROUP BY Orders.OrderID
+               ORDER BY Orders.DateCreated DESC";
+$pendingStmt = $conn->prepare($pendingSql);
+$pendingStmt->bind_param('i', $userId);
+$pendingStmt->execute();
+$pendingRequests = $pendingStmt->get_result();
+
+// Fetch all completed orders (for all clients)
+$completedSql = "SELECT Orders.OrderID, Orders.ServiceState, Orders.DateCreated, Orders.OrderType,
+                 Responders.FirstName AS SitterFirstName, Responders.LastName AS SitterLastName,
+                 GROUP_CONCAT(CONCAT(Comments.Timestamp, ' ', Responders2.FirstName, ' ', Responders2.LastName, ': ', Comments.CommentText)
+                              ORDER BY Comments.Timestamp DESC SEPARATOR '<br>') AS Comments
+                 FROM Orders
+                 LEFT JOIN Responders ON Orders.ResponderID = Responders.ResponderID -- Fetch sitter info
+                 LEFT JOIN Comments ON Orders.OrderID = Comments.OrderID
+                 LEFT JOIN Responders AS Responders2 ON Comments.ResponderID = Responders2.ResponderID -- Fetch comment authors
+                 WHERE Orders.ServiceState = 'Completed'
+                 GROUP BY Orders.OrderID
+                 ORDER BY Orders.DateCreated DESC";
+$completedStmt = $conn->prepare($completedSql);
+$completedStmt->execute();
+$completedRequests = $completedStmt->get_result();
 ?>
 
 <!DOCTYPE html>
@@ -72,16 +120,29 @@ $result = $stmt->get_result();
             background-color: #0073e6;
             color: white;
         }
-        .add-request {
-            display: inline-block;
-            margin-top: 20px;
-            padding: 10px 20px;
-            background: #0073e6;
-            color: #fff;
-            text-decoration: none;
-            border-radius: 5px;
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
         }
-        .add-request:hover {
+        .message {
+            color: green;
+            font-weight: bold;
+        }
+        textarea {
+            width: 100%;
+            resize: vertical;
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+        }
+        .confirm-button {
+            padding: 5px 10px;
+            background: #0073e6;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .confirm-button:hover {
             background: #005bb5;
         }
     </style>
@@ -92,14 +153,19 @@ $result = $stmt->get_result();
     </header>
 
     <nav>
-        <a href="create_order.php">Create New Service Request</a>
         <a href="logout.php">Logout</a>
+        <a href="query_order.php">Search Orders</a>
+        <a href="create_order.php">Create Order</a>
+        <a href="order_archive.php">Order Archive</a>
     </nav>
 
     <main>
-        <h2>Your Service Requests</h2>
+        <?php if (!empty($message)): ?>
+            <p class="message"><?php echo htmlspecialchars($message); ?></p>
+        <?php endif; ?>
 
-        <?php if ($result->num_rows > 0): ?>
+        <h2>Your Pending Requests</h2>
+        <?php if ($pendingRequests->num_rows > 0): ?>
             <table>
                 <thead>
                     <tr>
@@ -107,24 +173,62 @@ $result = $stmt->get_result();
                         <th>Service State</th>
                         <th>Date Created</th>
                         <th>Order Type</th>
+                        <th>Comments</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php while ($row = $result->fetch_assoc()): ?>
+                    <?php while ($row = $pendingRequests->fetch_assoc()): ?>
                         <tr>
                             <td><?php echo htmlspecialchars($row['OrderID']); ?></td>
                             <td><?php echo htmlspecialchars($row['ServiceState']); ?></td>
                             <td><?php echo htmlspecialchars($row['DateCreated']); ?></td>
                             <td><?php echo htmlspecialchars($row['OrderType']); ?></td>
+                            <td><?php echo $row['Comments'] ? nl2br($row['Comments']) : 'No comments yet'; ?></td>
                         </tr>
                     <?php endwhile; ?>
                 </tbody>
             </table>
         <?php else: ?>
-            <p>No service requests found.</p>
+            <p>No pending requests found.</p>
         <?php endif; ?>
 
-        <a href="create_order.php" class="add-request">Create New Service Request</a>
+        <h2>All Completed Requests</h2>
+        <?php if ($completedRequests->num_rows > 0): ?>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Order ID</th>
+                        <th>Service State</th>
+                        <th>Date Created</th>
+                        <th>Order Type</th>
+                        <th>Sitter</th>
+                        <th>Comments</th>
+                        <th>Confirm</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php while ($row = $completedRequests->fetch_assoc()): ?>
+                        <tr>
+                            <td><?php echo htmlspecialchars($row['OrderID']); ?></td>
+                            <td><?php echo htmlspecialchars($row['ServiceState']); ?></td>
+                            <td><?php echo htmlspecialchars($row['DateCreated']); ?></td>
+                            <td><?php echo htmlspecialchars($row['OrderType']); ?></td>
+                            <td><?php echo htmlspecialchars($row['SitterFirstName'] . ' ' . $row['SitterLastName']); ?></td>
+                            <td><?php echo $row['Comments'] ? nl2br($row['Comments']) : 'No comments yet'; ?></td>
+                            <td>
+                                <form method="POST" action="">
+                                    <input type="hidden" name="confirm_order_id" value="<?php echo htmlspecialchars($row['OrderID']); ?>">
+                                    <textarea name="client_comment" placeholder="Add a comment" required></textarea>
+                                    <button type="submit" class="confirm-button">Confirm</button>
+                                </form>
+                            </td>
+                        </tr>
+                    <?php endwhile; ?>
+                </tbody>
+            </table>
+        <?php else: ?>
+            <p>No completed requests found.</p>
+        <?php endif; ?>
     </main>
 </body>
 </html>

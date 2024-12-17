@@ -8,25 +8,68 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'Handler') {
     exit();
 }
 
-// Fetch pending orders
-$sql = "SELECT OrderID, ServiceState, DateCreated, OrderType, ResponderID FROM Orders WHERE ServiceState = 'Pending' ORDER BY DateCreated ASC";
+$userId = $_SESSION['user_id']; // Handler's ResponderID
+
+// Fetch pending orders and associated comments
+$sql = "SELECT Orders.OrderID, Orders.ServiceState, Orders.DateCreated, Orders.OrderType,
+        GROUP_CONCAT(CONCAT(Comments.Timestamp, ' ', Responders.FirstName, ' ', Responders.LastName, ': ', Comments.CommentText) 
+                     ORDER BY Comments.Timestamp ASC SEPARATOR '<br>') AS Comments
+        FROM Orders
+        LEFT JOIN Comments ON Orders.OrderID = Comments.OrderID
+        LEFT JOIN Responders ON Comments.ResponderID = Responders.ResponderID
+        WHERE Orders.ServiceState = 'Pending'
+        GROUP BY Orders.OrderID
+        ORDER BY Orders.DateCreated ASC";
 $result = $conn->query($sql);
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $orderId = $_POST['order_id'];
-    $responderId = $_POST['responder_id'];
+// Fetch sitters
+$sittersSql = "SELECT ResponderID, CONCAT(FirstName, ' ', LastName) AS SitterName FROM Responders WHERE Role = 'Sitter'";
+$sittersResult = $conn->query($sittersSql);
 
-    // Update the order status to Assigned
-    $updateSql = "UPDATE Orders SET ServiceState = 'Assigned', ResponderID = ? WHERE OrderID = ?";
-    $stmt = $conn->prepare($updateSql);
-    $stmt->bind_param('ii', $responderId, $orderId);
-
-    if ($stmt->execute()) {
-        $message = "Order $orderId has been assigned successfully.";
-    } else {
-        $message = "Error assigning order: " . $stmt->error;
+// Prepare sitters dropdown options
+$sittersOptions = [];
+if ($sittersResult->num_rows > 0) {
+    while ($sitter = $sittersResult->fetch_assoc()) {
+        $sittersOptions[] = $sitter;
     }
-    $stmt->close();
+}
+
+// Handle form submissions
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (isset($_POST['order_id'], $_POST['comment'])) {
+        // Adding a comment
+        $orderId = $_POST['order_id'];
+        $commentText = trim($_POST['comment']);
+
+        if (!empty($commentText)) {
+            $commentSql = "INSERT INTO Comments (OrderID, ResponderID, CommentText) VALUES (?, ?, ?)";
+            $stmt = $conn->prepare($commentSql);
+            $stmt->bind_param('iis', $orderId, $userId, $commentText);
+            if ($stmt->execute()) {
+                $message = "Comment added successfully.";
+            } else {
+                $message = "Error adding comment: " . $stmt->error;
+            }
+            $stmt->close();
+        } else {
+            $message = "Comment cannot be empty.";
+        }
+    } elseif (isset($_POST['order_id'], $_POST['responder_id'])) {
+        // Assigning order to a sitter
+        $orderId = $_POST['order_id'];
+        $responderId = $_POST['responder_id'];
+
+        $updateSql = "UPDATE Orders SET ServiceState = 'Assigned', ResponderID = ? WHERE OrderID = ?";
+        $stmt = $conn->prepare($updateSql);
+        $stmt->bind_param('ii', $responderId, $orderId);
+
+        if ($stmt->execute()) {
+            $message = "Order $orderId has been assigned successfully.";
+        } else {
+            $message = "Error assigning order: " . $stmt->error;
+        }
+        $stmt->close();
+    }
 }
 ?>
 
@@ -83,28 +126,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             background-color: #0073e6;
             color: white;
         }
-        .assign-form {
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .assign-form, .comment-form {
             display: flex;
             gap: 10px;
             align-items: center;
+            margin-top: 5px;
         }
-        .assign-form input, .assign-form button {
+        .assign-form button, .comment-form button {
             padding: 5px;
-        }
-        .assign-form button {
             background: #0073e6;
             color: white;
             border: none;
             border-radius: 3px;
             cursor: pointer;
         }
-        .assign-form button:hover {
+        .assign-form button:hover, .comment-form button:hover {
             background: #005bb5;
         }
         .message {
             margin-bottom: 20px;
             font-weight: bold;
             color: green;
+        }
+        textarea {
+            width: 100%;
+            resize: vertical;
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
         }
     </style>
 </head>
@@ -115,6 +167,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <nav>
         <a href="logout.php">Logout</a>
+        <a href="query_order.php">Search Orders</a>
+        <a href="order_archive.php">Order Archive</a>
+        <a href="order_type_manager.php">Manage Order Types</a>
     </nav>
 
     <main>
@@ -132,7 +187,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <th>Service State</th>
                         <th>Date Created</th>
                         <th>Order Type</th>
-                        <th>Assign to Responder</th>
+                        <th>Comments</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -143,10 +199,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <td><?php echo htmlspecialchars($row['DateCreated']); ?></td>
                             <td><?php echo htmlspecialchars($row['OrderType']); ?></td>
                             <td>
+                                <?php echo $row['Comments'] ? nl2br($row['Comments']) : 'No comments yet'; ?>
+                            </td>
+                            <td>
                                 <form method="POST" class="assign-form">
                                     <input type="hidden" name="order_id" value="<?php echo htmlspecialchars($row['OrderID']); ?>">
-                                    <input type="number" name="responder_id" placeholder="Responder ID" required>
+                                    <select name="responder_id" required>
+                                        <option value="" disabled selected>Select a sitter</option>
+                                        <?php foreach ($sittersOptions as $sitter): ?>
+                                            <option value="<?php echo htmlspecialchars($sitter['ResponderID']); ?>">
+                                                <?php echo htmlspecialchars($sitter['SitterName']); ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
                                     <button type="submit">Assign</button>
+                                </form>
+                                <form method="POST" class="comment-form">
+                                    <input type="hidden" name="order_id" value="<?php echo htmlspecialchars($row['OrderID']); ?>">
+                                    <textarea name="comment" placeholder="Add a comment"></textarea>
+                                    <button type="submit">Add Comment</button>
                                 </form>
                             </td>
                         </tr>
@@ -159,3 +230,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </main>
 </body>
 </html>
+
+
