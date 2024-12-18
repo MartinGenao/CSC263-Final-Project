@@ -50,15 +50,15 @@ $pendingStmt->bind_param('i', $userId);
 $pendingStmt->execute();
 $pendingRequests = $pendingStmt->get_result();
 
-// Fetch all completed orders (for all clients)
+// Fetch all completed orders
 $completedSql = "SELECT Orders.OrderID, Orders.ServiceState, Orders.DateCreated, Orders.OrderType,
                  Responders.FirstName AS SitterFirstName, Responders.LastName AS SitterLastName,
                  GROUP_CONCAT(CONCAT(Comments.Timestamp, ' ', Responders2.FirstName, ' ', Responders2.LastName, ': ', Comments.CommentText)
                               ORDER BY Comments.Timestamp DESC SEPARATOR '<br>') AS Comments
                  FROM Orders
-                 LEFT JOIN Responders ON Orders.ResponderID = Responders.ResponderID -- Fetch sitter info
+                 LEFT JOIN Responders ON Orders.ResponderID = Responders.ResponderID 
                  LEFT JOIN Comments ON Orders.OrderID = Comments.OrderID
-                 LEFT JOIN Responders AS Responders2 ON Comments.ResponderID = Responders2.ResponderID -- Fetch comment authors
+                 LEFT JOIN Responders AS Responders2 ON Comments.ResponderID = Responders2.ResponderID 
                  WHERE Orders.ServiceState = 'Completed'
                  GROUP BY Orders.OrderID
                  ORDER BY Orders.DateCreated DESC";

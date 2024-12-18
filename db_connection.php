@@ -2,7 +2,7 @@
 // Database connection settings
 $servername = "localhost"; // Replace with your server address
 $username = "root";        // Database username
-$password = "a3uytvuk";    // Database password
+$password = "1234";    // Database password
 $dbname = "PetSitter";      // Replace with your actual database name
 
 // Create a new database connection
