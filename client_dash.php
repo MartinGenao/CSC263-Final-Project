@@ -2,7 +2,6 @@
 session_start();
 include 'db_connection.php';
 
-// Check if the user is logged in and is a client
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'Client') {
     header('Location: login.php');
     exit();
@@ -11,19 +10,19 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'Client') {
 $userId = $_SESSION['user_id'];
 $message = "";
 
-// Handle adding a confirmation comment for completed orders
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_order_id'])) {
     $orderId = $_POST['confirm_order_id'];
     $clientComment = trim($_POST['client_comment']);
 
     if (!empty($clientComment)) {
-        // Add confirmation comment
+        
         $commentSql = "INSERT INTO Comments (OrderID, ResponderID, CommentText) VALUES (?, ?, ?)";
         $stmt = $conn->prepare($commentSql);
         $stmt->bind_param('iis', $orderId, $userId, $clientComment);
 
         if ($stmt->execute()) {
-            // Redirect to prevent form resubmission
+            
             header('Location: client_dash.php');
             exit();
         } else {
@@ -35,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_order_id'])) 
     }
 }
 
-// Fetch pending requests for the logged-in client
+
 $pendingSql = "SELECT Orders.OrderID, Orders.ServiceState, Orders.DateCreated, Orders.OrderType,
                GROUP_CONCAT(CONCAT(Comments.Timestamp, ' ', Responders.FirstName, ' ', Responders.LastName, ': ', Comments.CommentText)
                             ORDER BY Comments.Timestamp DESC SEPARATOR '<br>') AS Comments
@@ -50,7 +49,7 @@ $pendingStmt->bind_param('i', $userId);
 $pendingStmt->execute();
 $pendingRequests = $pendingStmt->get_result();
 
-// Fetch all completed orders
+
 $completedSql = "SELECT Orders.OrderID, Orders.ServiceState, Orders.DateCreated, Orders.OrderType,
                  Responders.FirstName AS SitterFirstName, Responders.LastName AS SitterLastName,
                  GROUP_CONCAT(CONCAT(Comments.Timestamp, ' ', Responders2.FirstName, ' ', Responders2.LastName, ': ', Comments.CommentText)

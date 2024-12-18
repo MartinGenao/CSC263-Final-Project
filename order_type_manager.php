@@ -2,7 +2,7 @@
 session_start();
 include 'db_connection.php';
 
-// Check if the user is logged in
+
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
     exit();
@@ -10,11 +10,11 @@ if (!isset($_SESSION['user_id'])) {
 
 $message = "";
 
-// Handle adding a new order type
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['new_order_type'])) {
     $newOrderType = trim($_POST['new_order_type']);
 
-    // Check if the order type already exists
+    
     $checkSql = "SELECT COUNT(*) AS count FROM Orders WHERE OrderType = ?";
     $stmt = $conn->prepare($checkSql);
     $stmt->bind_param('s', $newOrderType);
@@ -25,7 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['new_order_type'])) {
     if ($row['count'] > 0) {
         $message = "Order type already exists.";
     } else {
-        // Insert new order type
+    
         $insertSql = "INSERT INTO Orders (OrderType) VALUES (?)";
         $stmt = $conn->prepare($insertSql);
         $stmt->bind_param('s', $newOrderType);
@@ -39,11 +39,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['new_order_type'])) {
     $stmt->close();
 }
 
-// Handle deleting an order type
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_order_type'])) {
     $orderTypeToDelete = trim($_POST['delete_order_type']);
 
-    // Delete the selected order type
     $deleteSql = "DELETE FROM Orders WHERE OrderType = ?";
     $stmt = $conn->prepare($deleteSql);
     $stmt->bind_param('s', $orderTypeToDelete);
@@ -57,7 +55,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_order_type']))
     $stmt->close();
 }
 
-// Fetch all distinct order types
 $sql = "SELECT DISTINCT OrderType FROM Orders ORDER BY OrderType ASC";
 $result = $conn->query($sql);
 ?>

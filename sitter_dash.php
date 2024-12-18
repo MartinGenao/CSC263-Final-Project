@@ -2,7 +2,6 @@
 session_start();
 include 'db_connection.php';
 
-// Check if the user is logged in and is a sitter
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'Sitter') {
     header('Location: login.php');
     exit();
@@ -10,16 +9,16 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'Sitter') {
 
 $userId = $_SESSION['user_id'];
 
-// Fetch orders assigned to the logged-in sitter along with client information and comments
+
 $sql = "SELECT Orders.OrderID, Orders.ServiceState, Orders.DateCreated, Orders.OrderType,
                Responders.FirstName AS ClientFirstName, Responders.LastName AS ClientLastName,
                Responders.Phone AS ClientPhone, Responders.Email AS ClientEmail,
                GROUP_CONCAT(CONCAT(Comments.Timestamp, ' ', Responders2.FirstName, ' ', Responders2.LastName, ': ', Comments.CommentText)
                             ORDER BY Comments.Timestamp ASC SEPARATOR '<br>') AS Comments
         FROM Orders
-        LEFT JOIN Responders ON Orders.ResponderID = Responders.ResponderID -- Fetch client info
+        LEFT JOIN Responders ON Orders.ResponderID = Responders.ResponderID 
         LEFT JOIN Comments ON Orders.OrderID = Comments.OrderID
-        LEFT JOIN Responders AS Responders2 ON Comments.ResponderID = Responders2.ResponderID -- Fetch responders for comments
+        LEFT JOIN Responders AS Responders2 ON Comments.ResponderID = Responders2.ResponderID 
         WHERE Orders.ResponderID = ? AND Orders.ServiceState = 'Assigned'
         GROUP BY Orders.OrderID
         ORDER BY Orders.DateCreated ASC";
@@ -30,7 +29,7 @@ $result = $stmt->get_result();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['order_id'], $_POST['comment'])) {
-        // Adding a comment
+        
         $orderId = $_POST['order_id'];
         $commentText = trim($_POST['comment']);
 
@@ -60,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $message = "Comment cannot be empty.";
         }
     } elseif (isset($_POST['order_id'], $_POST['complete'])) {
-        // Marking order as completed
+        
         $orderId = $_POST['order_id'];
 
         $updateSql = "UPDATE Orders SET ServiceState = 'Completed' WHERE OrderID = ? AND ResponderID = ?";
@@ -74,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $stmt->close();
     } elseif (isset($_POST['order_id'], $_POST['deny'])) {
-        // Denying the service request
+        
         $orderId = $_POST['order_id'];
 
         $updateSql = "UPDATE Orders SET ServiceState = 'Pending' WHERE OrderID = ? AND ResponderID = ?";

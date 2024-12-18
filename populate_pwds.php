@@ -1,7 +1,6 @@
 <?php
 include 'db_connection.php';
 
-// Sample passwords to be hashed
 
 $passwords = [
     1 => password_hash('clientpass', PASSWORD_DEFAULT),
@@ -10,7 +9,6 @@ $passwords = [
     4 => password_hash('anotherclientpass', PASSWORD_DEFAULT),
 ];
 
-// Update the Password column in the Responders table
 foreach ($passwords as $id => $hash) {
     $sql = "UPDATE Responders SET Password = ? WHERE ResponderID = ?";
     $stmt = $conn->prepare($sql);

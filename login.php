@@ -7,7 +7,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = $_POST['email'];
     $password = $_POST['password'];
 
-    // Query to check user credentials
     $sql = "SELECT ResponderID, Role, Password FROM Responders WHERE Email = ?";
     $stmt = $conn->prepare($sql);
     $stmt->bind_param('s', $email);
@@ -17,12 +16,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($result->num_rows === 1) {
         $user = $result->fetch_assoc();
 
-        // Verify the password
+        
         if (password_verify($password, $user['Password'])) {
             $_SESSION['user_id'] = $user['ResponderID'];
             $_SESSION['role'] = $user['Role'];
 
-            // Redirect based on role
+            
             switch ($user['Role']) {
                 case 'Client':
                     header('Location: client_dash.php');

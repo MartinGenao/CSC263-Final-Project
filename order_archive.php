@@ -2,15 +2,14 @@
 session_start();
 include 'db_connection.php';
 
-// Check if the user is logged in
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
     header('Location: login.php');
     exit();
 }
 
-$userRole = $_SESSION['role']; // Retrieve the user's role from the session
+$userRole = $_SESSION['role']; 
 
-// Fetch archived orders (adjust this query as per your database structure)
+
 $sql = "SELECT OrderID, ServiceState, DateCreated, OrderType, ResponderID FROM Orders WHERE ServiceState = 'Completed' ORDER BY DateCreated DESC";
 $result = $conn->query($sql);
 ?>

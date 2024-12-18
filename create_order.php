@@ -1,12 +1,10 @@
 <?php
-// Include database connection
+
 include 'db_connection.php';
 session_start();
 
-// Initialize variables for form submission feedback
 $message = "";
 
-// Fetch all distinct order types for dropdown
 $orderTypes = [];
 $orderTypeSql = "SELECT DISTINCT OrderType FROM Orders ORDER BY OrderType ASC";
 $orderTypeResult = $conn->query($orderTypeSql);
@@ -16,38 +14,38 @@ if ($orderTypeResult->num_rows > 0) {
     }
 }
 
-// Handle form submission
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $orderType = trim($_POST['orderType']);
     $commentText = trim($_POST['comment']);
-    $clientIp = $_SERVER['REMOTE_ADDR']; // Capture the client's IP address
+    $clientIp = $_SERVER['REMOTE_ADDR']; s
 
-    // Normalize IPv6 loopback to IPv4 for consistency
+    
     if ($clientIp === '::1') {
         $clientIp = '127.0.0.1';
     }
 
-    $dateCreated = date('Y-m-d H:i:s'); // Automatically generate current date and time
-    $serviceState = 'pending'; // Default state
+    $dateCreated = date('Y-m-d H:i:s'); 
+    $serviceState = 'pending'; 
 
-    // Get the logged-in client's ResponderID
+    
     $responderID = $_SESSION['user_id'];
 
-    // Validate inputs
+    
     if (empty($orderType)) {
         $message = "Order type is required.";
     } elseif (empty($commentText)) {
         $message = "A comment is required to create an order.";
     } else {
-        // Insert the order into the Orders table
+        
         $sql = "INSERT INTO Orders (OrderType, DateCreated, ServiceState, ResponderID) VALUES (?, ?, ?, ?)";
         $stmt = $conn->prepare($sql);
         $stmt->bind_param('sssi', $orderType, $dateCreated, $serviceState, $responderID);
 
         if ($stmt->execute()) {
-            $orderID = $stmt->insert_id; // Get the ID of the newly created order
+            $orderID = $stmt->insert_id; 
 
-            // Insert the comment into the Comments table
+          
             $commentSql = "INSERT INTO Comments (OrderID, ResponderID, CommentText) VALUES (?, ?, ?)";
             $commentStmt = $conn->prepare($commentSql);
             $commentStmt->bind_param('iis', $orderID, $responderID, $commentText);
@@ -65,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $stmt->close();
 
-        // Pass the IP address dynamically to the session for query_order.php
+        
         $_SESSION['client_ip'] = $clientIp;
     }
 }

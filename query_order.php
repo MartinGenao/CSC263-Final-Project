@@ -7,15 +7,13 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
     exit();
 }
 
-$userRole = $_SESSION['role']; // Retrieve user role
+$userRole = $_SESSION['role']; 
 $orderDetails = null;
 $comments = [];
 $message = "";
 
-// Get the client's IP address
 $clientIp = $_SERVER['REMOTE_ADDR'];
 
-// Normalize IPv6 loopback to IPv4 for consistency
 if ($clientIp === '::1') {
     $clientIp = '127.0.0.1';
 }
@@ -23,7 +21,7 @@ if ($clientIp === '::1') {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $orderId = $_POST['order_id'];
 
-    // Fetch order details including client and sitter information
+    
     $orderSql = "SELECT Orders.OrderID, Orders.ServiceState, Orders.DateCreated, Orders.OrderType, 
                     ClientResponders.FirstName AS ClientFirstName, ClientResponders.LastName AS ClientLastName, 
                     ClientResponders.Phone AS ClientPhone, ClientResponders.Email AS ClientEmail,
@@ -31,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     SitterResponders.Role AS SitterRole
              FROM Orders
              LEFT JOIN Responders AS ClientResponders ON Orders.OrderID = 
-                 (SELECT OrderID FROM Orders WHERE Orders.OrderID = ? LIMIT 1) -- Fetch client info
+                 (SELECT OrderID FROM Orders WHERE Orders.OrderID = ? LIMIT 1) 
              LEFT JOIN Responders AS SitterResponders ON Orders.ResponderID = SitterResponders.ResponderID 
              WHERE Orders.OrderID = ?";
     $stmt = $conn->prepare($orderSql);
@@ -43,7 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($result->num_rows > 0) {
         $orderDetails = $result->fetch_assoc();
 
-        // Fetch comments for the order
+        
         $commentSql = "SELECT Comments.CommentText, Comments.Timestamp, Responders.FirstName, Responders.LastName 
                        FROM Comments 
                        LEFT JOIN Responders ON Comments.ResponderID = Responders.ResponderID 

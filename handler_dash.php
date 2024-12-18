@@ -2,15 +2,13 @@
 session_start();
 include 'db_connection.php';
 
-// Check if the user is logged in and is a handler
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'Handler') {
     header('Location: login.php');
     exit();
 }
 
-$userId = $_SESSION['user_id']; // Handler's ResponderID
+$userId = $_SESSION['user_id']; 
 
-// Fetch pending orders and associated comments
 $sql = "SELECT Orders.OrderID, Orders.ServiceState, Orders.DateCreated, Orders.OrderType,
         GROUP_CONCAT(CONCAT(Comments.Timestamp, ' ', Responders.FirstName, ' ', Responders.LastName, ': ', Comments.CommentText) 
                      ORDER BY Comments.Timestamp ASC SEPARATOR '<br>') AS Comments
@@ -22,11 +20,11 @@ $sql = "SELECT Orders.OrderID, Orders.ServiceState, Orders.DateCreated, Orders.O
         ORDER BY Orders.DateCreated ASC";
 $result = $conn->query($sql);
 
-// Fetch sitters
+
 $sittersSql = "SELECT ResponderID, CONCAT(FirstName, ' ', LastName) AS SitterName FROM Responders WHERE Role = 'Sitter'";
 $sittersResult = $conn->query($sittersSql);
 
-// Prepare sitters dropdown options
+/
 $sittersOptions = [];
 if ($sittersResult->num_rows > 0) {
     while ($sitter = $sittersResult->fetch_assoc()) {
@@ -34,10 +32,10 @@ if ($sittersResult->num_rows > 0) {
     }
 }
 
-// Handle form submissions
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['order_id'], $_POST['comment'])) {
-        // Adding a comment
+        
         $orderId = $_POST['order_id'];
         $commentText = trim($_POST['comment']);
 
@@ -55,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $message = "Comment cannot be empty.";
         }
     } elseif (isset($_POST['order_id'], $_POST['responder_id'])) {
-        // Assigning order to a sitter
+        
         $orderId = $_POST['order_id'];
         $responderId = $_POST['responder_id'];
 
