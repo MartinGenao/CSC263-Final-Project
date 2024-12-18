@@ -11,19 +11,27 @@ $userId = $_SESSION['user_id'];
 
 
 $sql = "SELECT Orders.OrderID, Orders.ServiceState, Orders.DateCreated, Orders.OrderType,
-               Responders.FirstName AS ClientFirstName, Responders.LastName AS ClientLastName,
-               Responders.Phone AS ClientPhone, Responders.Email AS ClientEmail,
+               FirstCommenter.FirstName AS ClientFirstName, FirstCommenter.LastName AS ClientLastName,
+               FirstCommenter.Phone AS ClientPhone, FirstCommenter.Email AS ClientEmail,
                GROUP_CONCAT(CONCAT(Comments.Timestamp, ' ', Responders2.FirstName, ' ', Responders2.LastName, ': ', Comments.CommentText)
                             ORDER BY Comments.Timestamp ASC SEPARATOR '<br>') AS Comments
         FROM Orders
-        LEFT JOIN Responders ON Orders.ResponderID = Responders.ResponderID 
+        LEFT JOIN Responders AS FirstCommenter 
+            ON FirstCommenter.ResponderID = (
+                SELECT c.ResponderID
+                FROM Comments c
+                WHERE c.OrderID = Orders.OrderID
+                ORDER BY c.Timestamp ASC
+                LIMIT 1
+            )
         LEFT JOIN Comments ON Orders.OrderID = Comments.OrderID
-        LEFT JOIN Responders AS Responders2 ON Comments.ResponderID = Responders2.ResponderID 
-        WHERE Orders.ResponderID = ? AND Orders.ServiceState = 'Assigned'
+        LEFT JOIN Responders AS Responders2 ON Comments.ResponderID = Responders2.ResponderID
+        WHERE Orders.ServiceState = 'Assigned'
         GROUP BY Orders.OrderID
         ORDER BY Orders.DateCreated ASC";
+
 $stmt = $conn->prepare($sql);
-$stmt->bind_param('i', $userId);
+//$stmt->bind_param('i', $userId);
 $stmt->execute();
 $result = $stmt->get_result();
 
@@ -175,6 +183,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             border: 1px solid #ccc;
             border-radius: 3px;
         }
+        footer {
+            text-align: center;
+            padding: 10px;
+            background: #333;
+            color: white;
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+        }
+        
     </style>
 </head>
 <body>
@@ -246,5 +264,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <p>No assigned orders found.</p>
         <?php endif; ?>
     </main>
+    <footer>
+        <p>&copy; 2024 Team Titans - CSC 263 Final Project</p>
+    </footer>
 </body>
 </html>

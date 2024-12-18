@@ -144,6 +144,15 @@ $completedRequests = $completedStmt->get_result();
         .confirm-button:hover {
             background: #005bb5;
         }
+        footer {
+            text-align: center;
+            padding: 10px;
+            background: #333;
+            color: white;
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+        }
     </style>
 </head>
 <body>
@@ -229,5 +238,8 @@ $completedRequests = $completedStmt->get_result();
             <p>No completed requests found.</p>
         <?php endif; ?>
     </main>
+    <footer>
+        <p>&copy; 2024 Team Titans - CSC 263 Final Project</p>
+    </footer>
 </body>
 </html>

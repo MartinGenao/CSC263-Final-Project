@@ -131,6 +131,15 @@ $result = $conn->query($sql);
         .delete-button:hover {
             background-color: #cc0000;
         }
+        footer {
+            text-align: center;
+            padding: 10px;
+            background: #333;
+            color: white;
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+        }
     </style>
 </head>
 <body>
@@ -149,7 +158,7 @@ $result = $conn->query($sql);
         <?php if (!empty($message)): ?>
             <p class="message"><?php echo htmlspecialchars($message); ?></p>
         <?php endif; ?>
-
+            <!-- Form for adding a new order type along with input field and submit button to add new order type -->
         <div class="form-container">
             <form method="POST" action="">
                 <label for="new_order_type">Add New Order Type:</label>
@@ -159,7 +168,7 @@ $result = $conn->query($sql);
         </div>
 
         <h3>Existing Order Types</h3>
-
+             <!-- Dynamically generate table of existing order types and populate the table -->
         <?php if ($result->num_rows > 0): ?>
             <table>
                 <thead>
@@ -186,5 +195,9 @@ $result = $conn->query($sql);
             <p>No order types found.</p>
         <?php endif; ?>
     </main>
+
+    <footer>
+        <p>&copy; 2024 Team Titans - CSC 263 Final Project</p>
+    </footer>
 </body>
 </html>

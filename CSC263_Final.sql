@@ -58,9 +58,9 @@ VALUES
 (3, '2022-04-08 08:00:00', 'Service completed!', 3, 3),
 (4, '2021-09-24 07:00:00', 'Service completed!', 4, 4);
 
-/* Clear Test Data in database */
-DELETE FROM Comments; -- Clear all comments related to orders
-DELETE FROM Orders; -- Clear all orders
+/* Clear Test Data in database and reset auto increment */
+DELETE FROM Comments; 
+DELETE FROM Orders; 
 
-ALTER TABLE Comments AUTO_INCREMENT = 1; -- Reset the auto-increment for Comments
-ALTER TABLE Orders AUTO_INCREMENT = 1; -- Reset the auto-increment for Orders
+ALTER TABLE Comments AUTO_INCREMENT = 1; 
+ALTER TABLE Orders AUTO_INCREMENT = 1; 

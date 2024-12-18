@@ -120,6 +120,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             color: red;
             font-weight: bold;
         }
+        footer {
+            text-align: center;
+            padding: 10px;
+            background: #333;
+            color: white;
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+        }
     </style>
 </head>
 <body>
@@ -221,6 +230,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <?php endif; ?>
         <?php endif; ?>
     </main>
+    <footer>
+        <p>&copy; 2024 Team Titans - CSC 263 Final Project</p>
+    </footer>
 </body>
 </html>
 

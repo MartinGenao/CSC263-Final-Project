@@ -2,6 +2,7 @@
 session_start();
 include 'db_connection.php';
 
+// Check if the user is logged in and is a handler
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'Handler') {
     header('Location: login.php');
     exit();
@@ -9,6 +10,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'Handler') {
 
 $userId = $_SESSION['user_id']; 
 
+// Fetch pending orders and associated comments
 $sql = "SELECT Orders.OrderID, Orders.ServiceState, Orders.DateCreated, Orders.OrderType,
         GROUP_CONCAT(CONCAT(Comments.Timestamp, ' ', Responders.FirstName, ' ', Responders.LastName, ': ', Comments.CommentText) 
                      ORDER BY Comments.Timestamp ASC SEPARATOR '<br>') AS Comments
@@ -20,11 +22,11 @@ $sql = "SELECT Orders.OrderID, Orders.ServiceState, Orders.DateCreated, Orders.O
         ORDER BY Orders.DateCreated ASC";
 $result = $conn->query($sql);
 
-
+// Fetch sitters
 $sittersSql = "SELECT ResponderID, CONCAT(FirstName, ' ', LastName) AS SitterName FROM Responders WHERE Role = 'Sitter'";
 $sittersResult = $conn->query($sittersSql);
 
-/
+// Prepare sitters dropdown options
 $sittersOptions = [];
 if ($sittersResult->num_rows > 0) {
     while ($sitter = $sittersResult->fetch_assoc()) {
@@ -32,28 +34,42 @@ if ($sittersResult->num_rows > 0) {
     }
 }
 
-
+// Handle form submissions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['order_id'], $_POST['comment'])) {
-        
+        // Adding a comment
         $orderId = $_POST['order_id'];
         $commentText = trim($_POST['comment']);
 
         if (!empty($commentText)) {
-            $commentSql = "INSERT INTO Comments (OrderID, ResponderID, CommentText) VALUES (?, ?, ?)";
-            $stmt = $conn->prepare($commentSql);
-            $stmt->bind_param('iis', $orderId, $userId, $commentText);
-            if ($stmt->execute()) {
-                $message = "Comment added successfully.";
+            // Check if the handler has already commented on this order
+            $checkCommentSql = "SELECT COUNT(*) AS count FROM Comments WHERE OrderID = ? AND ResponderID = ?";
+            $checkCommentStmt = $conn->prepare($checkCommentSql);
+            $checkCommentStmt->bind_param('ii', $orderId, $userId);
+            $checkCommentStmt->execute();
+            $checkCommentResult = $checkCommentStmt->get_result();
+            $row = $checkCommentResult->fetch_assoc();
+
+            if ($row['count'] > 0) {
+                $message = "You have already commented on this order.";
             } else {
-                $message = "Error adding comment: " . $stmt->error;
+                // Insert the new comment
+                $commentSql = "INSERT INTO Comments (OrderID, ResponderID, CommentText) VALUES (?, ?, ?)";
+                $commentStmt = $conn->prepare($commentSql);
+                $commentStmt->bind_param('iis', $orderId, $userId, $commentText);
+                if ($commentStmt->execute()) {
+                    $message = "Comment added successfully.";
+                } else {
+                    $message = "Error adding comment: " . $commentStmt->error;
+                }
+                $commentStmt->close();
             }
-            $stmt->close();
+            $checkCommentStmt->close();
         } else {
             $message = "Comment cannot be empty.";
         }
     } elseif (isset($_POST['order_id'], $_POST['responder_id'])) {
-        
+        // Assigning order to a sitter
         $orderId = $_POST['order_id'];
         $responderId = $_POST['responder_id'];
 
@@ -156,6 +172,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             border: 1px solid #ccc;
             border-radius: 3px;
         }
+        footer {
+            text-align: center;
+            padding: 10px;
+            background: #333;
+            color: white;
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+        }
     </style>
 </head>
 <body>
@@ -200,6 +225,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <?php echo $row['Comments'] ? nl2br($row['Comments']) : 'No comments yet'; ?>
                             </td>
                             <td>
+                                <form method="POST" class="comment-form">
+                                    <input type="hidden" name="order_id" value="<?php echo htmlspecialchars($row['OrderID']); ?>">
+                                    <textarea name="comment" placeholder="Add a comment"></textarea>
+                                    <button type="submit">Add Comment</button>
+                                </form>
                                 <form method="POST" class="assign-form">
                                     <input type="hidden" name="order_id" value="<?php echo htmlspecialchars($row['OrderID']); ?>">
                                     <select name="responder_id" required>
@@ -212,11 +242,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     </select>
                                     <button type="submit">Assign</button>
                                 </form>
-                                <form method="POST" class="comment-form">
-                                    <input type="hidden" name="order_id" value="<?php echo htmlspecialchars($row['OrderID']); ?>">
-                                    <textarea name="comment" placeholder="Add a comment"></textarea>
-                                    <button type="submit">Add Comment</button>
-                                </form>
                             </td>
                         </tr>
                     <?php endwhile; ?>
@@ -226,7 +251,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <p>No pending service requests found.</p>
         <?php endif; ?>
     </main>
+    <footer>
+        <p>&copy; 2024 Team Titans - CSC 263 Final Project</p>
+    </footer>
 </body>
 </html>
-
 

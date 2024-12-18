@@ -1,43 +1,43 @@
 <?php
-
+// Database Connection
 include 'db_connection.php';
 session_start();
 
 $message = "";
 
+// Fetch order types from the database to populate the dropdown menu
 $orderTypes = [];
-$orderTypeSql = "SELECT DISTINCT OrderType FROM Orders ORDER BY OrderType ASC";
-$orderTypeResult = $conn->query($orderTypeSql);
-if ($orderTypeResult->num_rows > 0) {
-    while ($row = $orderTypeResult->fetch_assoc()) {
+$sql = "SELECT DISTINCT OrderType FROM Orders ORDER BY OrderType ASC";
+$result = $conn->query($sql);
+if ($result->num_rows > 0) {
+    while ($row = $result->fetch_assoc()) {
         $orderTypes[] = $row['OrderType'];
     }
 }
 
-
+// Retrieve user input
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $orderType = trim($_POST['orderType']);
-    $commentText = trim($_POST['comment']);
-    $clientIp = $_SERVER['REMOTE_ADDR']; s
+    $orderType = trim($_POST['orderType']); 
+    $commentText = trim($_POST['comment']); 
+    $clientIp = $_SERVER['REMOTE_ADDR']; // Client IP address for tracking purposes
 
-    
+    // Convert localhost IP to a standard format
     if ($clientIp === '::1') {
         $clientIp = '127.0.0.1';
     }
 
+    // Initialize fields for the DB, including timestamp, service state, and user ID from login session
     $dateCreated = date('Y-m-d H:i:s'); 
     $serviceState = 'pending'; 
-
-    
     $responderID = $_SESSION['user_id'];
 
-    
+    // Ensure fields are filled out
     if (empty($orderType)) {
-        $message = "Order type is required.";
+        $message = "Order type is required."; 
     } elseif (empty($commentText)) {
-        $message = "A comment is required to create an order.";
+        $message = "A comment is required to create an order."; 
     } else {
-        
+        // SQL query to insert the new order into the Orders table
         $sql = "INSERT INTO Orders (OrderType, DateCreated, ServiceState, ResponderID) VALUES (?, ?, ?, ?)";
         $stmt = $conn->prepare($sql);
         $stmt->bind_param('sssi', $orderType, $dateCreated, $serviceState, $responderID);
@@ -45,30 +45,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($stmt->execute()) {
             $orderID = $stmt->insert_id; 
 
-          
+            // SQL query to insert the comment associated with this order into the Comments table
             $commentSql = "INSERT INTO Comments (OrderID, ResponderID, CommentText) VALUES (?, ?, ?)";
             $commentStmt = $conn->prepare($commentSql);
             $commentStmt->bind_param('iis', $orderID, $responderID, $commentText);
 
             if ($commentStmt->execute()) {
-                $message = "Order created successfully!";
+                $message = "Order created successfully!"; 
             } else {
-                $message = "Error adding comment: " . $commentStmt->error;
+                $message = "Error adding comment: " . $commentStmt->error; 
             }
 
             $commentStmt->close();
         } else {
-            $message = "Error creating order: " . $stmt->error;
+            $message = "Error creating order: " . $stmt->error; 
         }
 
         $stmt->close();
 
-        
-        $_SESSION['client_ip'] = $clientIp;
+        // IP tracking
+        $_SESSION['client_ip'] = $clientIp; 
     }
 }
 ?>
 
+<!-- HTML + CSS -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -137,22 +138,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .back-button:hover {
             background: #005bb5;
         }
+        footer {
+            text-align: center;
+            padding: 10px;
+            background: #333;
+            color: white;
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+        }
     </style>
 </head>
 <body>
     <header>
         <h1>Create a New Order</h1>
     </header>
-
     <main>
+        <!-- Input fields for comments/submit button/type of service -->
         <form method="POST" action="">
             <label for="orderType">Order Type:</label>
             <select id="orderType" name="orderType" required>
-                <option value="" disabled selected>Select an order type</option>
+                <option value="">-- Select an Order Type --</option>
+                <!-- Populate dropdown options dynamically -->
                 <?php foreach ($orderTypes as $type): ?>
-                    <option value="<?php echo htmlspecialchars($type); ?>">
-                        <?php echo htmlspecialchars($type); ?>
-                    </option>
+                    <option value="<?php echo htmlspecialchars($type); ?>"><?php echo htmlspecialchars($type); ?></option>
                 <?php endforeach; ?>
             </select>
 
@@ -161,13 +170,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <button type="submit">Create Order</button>
         </form>
-
+        <!-- Message to let user know order was successfully created -->
         <?php if ($message): ?>
             <p class="message"><?php echo htmlspecialchars($message); ?></p>
         <?php endif; ?>
-
+        <!-- Navigation link -->
         <a href="client_dash.php" class="back-button">Back to Client Dashboard</a>
     </main>
+    <footer>
+        <p>&copy; 2024 Team Titans - CSC 263 Final Project</p>
+    </footer>
 </body>
 </html>
 

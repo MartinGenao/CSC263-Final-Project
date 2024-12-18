@@ -70,6 +70,15 @@ $result = $conn->query($sql);
         tr:nth-child(even) {
             background-color: #f9f9f9;
         }
+        footer {
+            text-align: center;
+            padding: 10px;
+            background: #333;
+            color: white;
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+        }
     </style>
 </head>
 <body>
@@ -118,5 +127,8 @@ $result = $conn->query($sql);
             <p>No archived orders found.</p>
         <?php endif; ?>
     </main>
+    <footer>
+        <p>&copy; 2024 Team Titans - CSC 263 Final Project</p>
+    </footer>
 </body>
 </html>
